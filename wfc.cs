@@ -17,7 +17,7 @@ class wfc{
     int[,] stack;
 
     public int tx,ty,tz,tt,sx,sy,sz;
-    bool[,,,] wave;
+    public bool[,,,] wave;
     int[,,] lens;
     int ndone;
     int nstack;
@@ -49,13 +49,15 @@ class wfc{
         int x,y,z,t;
         clear();
         boundary();
+
         while(ndone<sx*sy*sz){
             while(nstack>0){
+                nstack--;
                 x=stack[nstack,0];
                 y=stack[nstack,1];
                 z=stack[nstack,2];
                 t=stack[nstack,3];
-                nstack--;
+                
                 propagate(x,y,z,t);
             }
             if(ndone<sx*sy*sz)
@@ -186,9 +188,26 @@ class wfc{
             int dz=ix(z,tz);
             if ((dx<0 || dx>=sx || dy<0 || dy>=sy || dz<0 || dz>=sz))
                 propagate(dx,dy,dz,0,true);
-                
+            else
+                alt_propagate(dx,dy,dz);  
         }
 
+    }
+
+    void alt_propagate(int X,int Y,int Z){
+        for(int t=0;t<tt;t++)
+        for(int x=0; x<tx; x++)
+        for(int y=0; y<ty; y++)
+        for(int z=0; z<tz; z++)
+        {
+            //centered
+            int dx=X+ix(x,tx);
+            int dy=Y+ix(y,ty);
+            int dz=Z+ix(z,tz);
+            if (!(dx<0 || dx>=sx || dy<0 || dy>=sy || dz<0 || dz>=sz || wave[X,Y,Z,t]==false))
+                if(tiles[x,y,z,t]==-1)
+                    rem(X,Y,Z,t);
+        }
     }
 
     public int[,,] result(){
