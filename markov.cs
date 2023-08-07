@@ -16,13 +16,14 @@ class markov{
     double[,,] entropy;
     int[,] stack;
 
-    int[,,] chain;
-    int[,] clen;
+    bool[,,] chain;
+    
     int[] cx,cy,cz;
 
 
     public int tx,ty,tz,tt,sx,sy,sz;
     public bool[,,,] wave;
+    public int[,,] collapse;
     int[,,] lens;
     int ndone;
     int nstack;
@@ -50,10 +51,97 @@ class markov{
         
     }
 
-    public void run(){
-        int x,y,z,t;
+    int[,,] void run(){
+        
         clear();
         conns();
+        return build();
+    }
+
+    int[,,] build(){
+        int[,,] map = new int[sx,sy,sz];
+        for(int x=0;x<sx;x++)
+        for(int y=0;y<sy;y++)
+        for(int z=0;z<sz;z++)
+            map[x,y,z]=-1;
+        if (recur(0,ref map)){
+            for(int x=0;x<sx;x++)
+            for(int y=0;y<sy;y++)
+            for(int z=0;z<sz;z++)
+                map[x,y,z]=tiles[ix(0,tx),ix(0,ty),ix(0,tz),map[x,y,z]];
+            return map;
+        }
+        else
+            throw new InvalidOperationException("Impossible Geometry");
+            
+    }
+
+    bool recur(int i,ref int [,,] map){
+        if (i==sx*sy*sz)
+            return true;
+        int[] opts,temp_opts;
+        int x0,y0,z0;
+        double best_len,temp_len;
+        best_len=1e9;
+        for(int x=0;x<sx;x++)
+        for(int y=0;y<sy;y++)
+        for(int z=0;z<sz;z++){
+            if (map[x,y,z]<0){
+                temp_opts=options(x,y,z,map);
+                if(temp_opts.Length == 0)
+                    return false;
+                
+                temp_len=(double)temp_opts.Length+rand.NextDouble()*1e-3;
+                if (temp_len<best_len){
+                    best_len=temp_len;
+                    opts=temp_opts;
+                    x0=x;y0=y;z0=z;
+                }
+            }
+        }
+        shuffle(opts);
+        for(int j=0;j<opts.Length;j++){
+            map[x0,y0,z0]=opts[j];
+            if (recur(i+1, ref map))
+                return true;
+        }
+        map[x0,y0,z0]=-1;
+        return false;
+    }
+
+    public static void shuffle (int[] array)
+    {
+        int n = array.Length;
+        while (n > 1) 
+        {
+            int k = rand.Next(n--);
+            int temp = array[n];
+            array[n] = array[k];
+            array[k] = temp;
+        }
+    }
+
+    int[] options(int x,int y,int z,int[,,] map){
+        int dx,dy,dz,t2;
+        List<int> opts=new List<int>();
+        bool checker;
+        for(int t=0;t<tt;t++){
+            checker=true;
+            for(int w=0;w<6;w++){
+                dx=x-cx[w];dy=y-cy[w];dz=z-cz[w];
+                t2=-1;
+                if(dx<0 || dx>=sx || dy<0 || dy>=sy || dz<0 || dz>=sz)
+                    t2=tt; 
+                else
+                    if(map[dx,dy,dz]>=0)
+                        t2=map[dx,dy,dz];
+                if (t2>=0)
+                    checker = checker && chain[t,w,t2];                    
+            }
+            if(checker)
+                opts.Add(t);
+        }
+        return opts.ToArray();
     }
 
     void conns(){
@@ -64,14 +152,14 @@ class markov{
             y=ix(-cy[j],ty);
             z=ix(-cz[j],tz);
             if (tiles[x,y,z,i]==-1){
-                chain[tt,j,clen[tt,j]]=i;
-                clen[tt,j]++;
+                chain[tt,j,i]=true;
+                
             }
           
             for(int k=0;k<tt;k++)
             if (overlap(i,k,cx[j],cx[j],cx[j])){
-                chain[i,j,clen[i,j]]=k;
-                clen[i,j]++;
+                chain[i,j,k]=true;
+                
             }
         }
     }
@@ -91,6 +179,7 @@ class markov{
     void clear(){
         wave = new bool[sx,sy,sz,tt];
         lens = new int[sx,sy,sz];
+        collapse = new int[sx,sy,sz];
         wsums= new double[sx,sy,sz];
         wlogs= new double[tt];
         wlogssums= new double[sx,sy,sz];
@@ -108,6 +197,7 @@ class markov{
         for(int x=0;x<sx;x++)
         for(int y=0;y<sy;y++)
         for(int z=0;z<sz;z++){
+            collapse[x,y,z]=-1;
             wsums[x,y,z]=1.0;
             wlogssums[x,y,z]=logs;
             entropy[x,y,z]=logs;
@@ -116,16 +206,15 @@ class markov{
                 wave[x,y,z,t]=true;
 
         }
-        chain=new int[tt+1,6,tt+1];
-        clen =new int[tt+1,6];
+        chain=new bool[tt+1,6,tt+1];
+        
         cx=new int[6]{1,-1,0,0,0,0};
         cy=new int[6]{0,0,1,-1,0,0};
         cz=new int[6]{0,0,0,0,1,-1};
         for(int i=0;i<tt+1;i++)
         for(int j=0;j<6;j++){
-            clen[i,j]=0;
             for(int k=0;k<tt+1;k++)
-                chain[i,j,k]=-1;
+                chain[i,j,k]=false;
         }
             
         
@@ -183,24 +272,6 @@ class markov{
         }
     }
 
-    public static int check(int[,,] tile,List<int[,,]> tiles){
-        int Sx=tile.GetLength(0);
-        int Sy=tile.GetLength(1);
-        int Sz=tile.GetLength(2);
-
-        int t=tiles.Count;
-        for(int i=0;i<t;i++){
-            bool is_same=true;
-            for (int x=0;x<Sx;x++)
-            for (int y=0;y<Sy;y++)
-            for (int z=0;z<Sz;z++)
-            if(tiles[i][x,y,z]!=tile[x,y,z])
-                is_same=false;
-            if(is_same)
-                return i;
-        }
-        return -1;
-    }
 
     public static int ix(int idx,int idx_size){
         return idx-idx_size/2+1-idx_size%2;
