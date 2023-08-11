@@ -138,7 +138,7 @@ class wfc{
     }
     
     void propagate(int X, int Y, int Z, int T,bool bounds=false){
-        int val;
+        int val,val2;
         if(bounds)
             val = -1;
         else
@@ -149,18 +149,35 @@ class wfc{
         for(int z=0; z<tz; z++)
         for(int t=0;t<tt;t++){
             //centered
+            
             int dx=X+ix(x,tx);
             int dy=Y+ix(y,ty);
             int dz=Z+ix(z,tz);
-            if (!(dx<0 || dx>=sx || dy<0 || dy>=sy || dz<0 || dz>=sz || wave[dx,dy,dz,t]==false))
-                if(tiles[tx-x-1,ty-y-1,tz-z-1,t]!=val)
+            if (!(dx<0 || dx>=sx || dy<0 || dy>=sy || dz<0 || dz>=sz ))
+                //if tile value appears in other others n tile
+                if(wave[dx,dy,dz,t]==false && tiles[tx-x-1,ty-y-1,tz-z-1,t]!=val){
+                    //if(lens[dx,dy,dz]==1)
+                    //    throw new InvalidOperationException("opps");
                     rem(dx,dy,dz,t);
+                }
+                //if this pattern conflicts with others
+                
+            if(!bounds){
+                val2=tiles[x,y,z,T];
+
+            }
+            
+            
         }
     }
 
     void rem(int x, int y, int z, int t){
+
+        
+
         wave[x,y,z,t]=false;
         lens[x,y,z]-=1;
+        
         wsums[x,y,z]-=weights[t];
         wlogssums[x,y,z]-=wlogs[t];
         entropy[x,y,z]=Math.Log(wsums[x,y,z]) - wlogssums[x,y,z] / wsums[x,y,z];
