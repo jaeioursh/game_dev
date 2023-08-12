@@ -27,17 +27,19 @@ class markov{
     int[,,] lens;
     int ndone;
     int nstack;
+    bool verbose;
     Random rand;
 
     List<List<List<int>>> CCC;
     
 
-    public markov(int[,,] example, int Tx,int Ty,int Tz,int Sx,int Sy,int Sz){
+    public markov(int[,,] example, int Tx,int Ty,int Tz,int Sx,int Sy,int Sz,bool rotatable = true){
         int[,,,] Tiles=null;
         double[] Weights=null;
+        verbose=true;
         int Tt=0;
 
-        example2tile(example, ref Tiles, ref Weights, ref Tt,Tx,Ty,Tz);
+        example2tile(example, ref Tiles, ref Weights, ref Tt,Tx,Ty,Tz,rotatable);
         setup(Tiles,Weights,Tx,Ty,Tz,Tt,Sx,Sy,Sz);
 
     }
@@ -54,13 +56,21 @@ class markov{
         
     }
 
-    public int[,,] run(int limit,ref int depth){
+    public int[,,] run(){
         
         
         clearer();
-        return build2(limit,ref depth);
+        return build();
     }
-    public int[,,] build2(int limit,ref int depth){
+
+    public void status(){
+        if(verbose){
+            Console.Write(ndone);
+            Console.Write(" / ");
+            Console.WriteLine(sx*sy*sz);
+        }
+    }
+    public int[,,] build(){
         bool flag;
         bounds();
         fill_out();
@@ -82,7 +92,7 @@ class markov{
         }
         return map;
     }
-    int[,,] build(int limit,ref int depth){
+    int[,,] build2(int limit,ref int depth){
         int[,,] map = new int[sx,sy,sz];
         int LIMIT=limit;
         for(int x=0;x<sx;x++)
@@ -163,6 +173,7 @@ class markov{
         wave[ax,ay,az,at]=true;
         lens[ax,ay,az]=1;
         ndone++;
+        status();
         prop(ax,ay,az);
 
         }
@@ -212,8 +223,10 @@ class markov{
                                 wave[dx,dy,dz,j]=false; //remove tile
                                 delta=true;             //change occured and must propagate
                                 lens[dx,dy,dz]--;
-                                if(lens[dx,dy,dz]==1)
+                                if(lens[dx,dy,dz]==1){
                                     ndone++;
+                                    status();
+                                }
                             }
 
                         }
@@ -407,13 +420,18 @@ class markov{
 
 
 
-    public static void example2tile(int[,,] example, ref int[,,,] Tiles, ref double[] Weights, ref int Tt, int Tx, int Ty, int Tz){
+    public static void example2tile(int[,,] example, ref int[,,,] Tiles, ref double[] Weights, ref int Tt, int Tx, int Ty, int Tz,bool rotatable = true){
         List<int[,,]> tiles = new List<int[,,]>();
         List<double> w=new List<double>();
         double summ=0;
         int Sx=example.GetLength(0);
         int Sy=example.GetLength(1);
         int Sz=example.GetLength(2);
+        int nrot=0;
+        if(rotatable)
+            nrot=4;
+        else
+            nrot=1;
         for (int z=0;z<Sz;z++)
         for (int y=0;y<Sy;y++)
         for (int x=0;x<Sx;x++)
@@ -434,14 +452,18 @@ class markov{
                     tile[dx,dy,dz]=example[X,Y,Z];
             }
             if(!is_negative){
-                int c = check(tile,tiles);
-                summ+=1;
-                if(c<0){
-                    tiles.Add(tile);
-                    w.Add(1);
-                }
-                else{
-                    w[c]+=1;
+                for(int r=0;r<nrot;r++){
+                    int c = check(tile,tiles);
+                    summ+=1;
+                    if(c<0){
+                        tiles.Add(tile);
+                        w.Add(1);
+                    }
+                    else{
+                        w[c]+=1;
+                    }
+                    if (rotatable)
+                        tile=rotate(tile,Tx,Ty,Tz);
                 }
             }
         }
@@ -475,6 +497,43 @@ class markov{
                 return i;
         }
         return -1;
+    }
+
+    public static int[,,] rotate( int[,, ] mat,int tx,int ty,int tz)
+    {
+        int N=tx;
+        int[,,] MAT=new int[tx,ty,tz];
+        // Consider all
+        // squares one by one
+        for (int x = 0; x < N / 2; x++) {
+            // Consider elements
+            // in group of 4 in
+            // current square
+            for (int y = x; y < N - x - 1; y++) {
+
+                for(int z=0;z<tz;z++){
+                // store current cell
+                // in temp variable 
+                // move values from
+                // right to top
+                MAT[x, y, z] = mat[y, N - 1 - x, z];
+ 
+                // move values from
+                // bottom to right
+                MAT[y, N - 1 - x, z]
+                    = mat[N - 1 - x, N - 1 - y, z];
+ 
+                // move values from
+                // left to bottom
+                MAT[N - 1 - x, N - 1 - y, z]
+                    = mat[N - 1 - y, x, z];
+ 
+                // assign temp to left
+                MAT[N - 1 - y, x, z] = mat[x, y, z];;
+                }
+            }
+        }
+        return MAT;
     }
 
     public static int ix(int idx,int idx_size){
