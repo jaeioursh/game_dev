@@ -25,6 +25,7 @@ class markov{
     public bool[,,,] wave;
     public int[,,] collapse;
     int[,,] lens;
+    bool[,,] dones;
     int ndone;
     int nstack;
     bool verbose;
@@ -60,6 +61,8 @@ class markov{
         
         
         clearer();
+        if(verbose)
+            Console.WriteLine("Connections Built");
         return build();
     }
 
@@ -73,7 +76,8 @@ class markov{
     public int[,,] build(){
         bool flag;
         bounds();
-        fill_out();
+        if (!fill_out())
+            return null;
         int[,,] map = new int[sx,sy,sz];
         for(int x=0;x<sx;x++)
         for(int y=0;y<sy;y++)
@@ -136,7 +140,43 @@ class markov{
     
     }
     
-    void fill_out(){
+    bool fill_out(){
+
+        double min = 1E+4;
+        int at=-1;
+        
+        
+        for(int x=0;x<sx;x++)
+        for(int y=0;y<sy;y++)
+        for(int z=0;z<sz;z++)
+            
+            if (lens[x,y,z] > 1)
+            {
+                min=1e4;
+                //randomly choose t
+                for(int t=0;t<tt;t++)
+                    if (wave[x,y,z,t]){
+                        double noise = rand.NextDouble();
+                        if (noise < min)
+                        {
+                            min =  noise;
+                            at=t;
+                        }
+                        wave[x,y,z,t]=false;
+                    }
+                
+                wave[x,y,z,at]=true;
+                lens[x,y,z]=1;
+                ndone++;
+                status();
+                if (!prop(x,y,z))
+                    return false;
+            }
+        
+        return true;
+    }
+
+    bool fill_out2(){
 
         double min = 1E+4;
         int ax,ay,az,at;
@@ -174,9 +214,11 @@ class markov{
         lens[ax,ay,az]=1;
         ndone++;
         status();
-        prop(ax,ay,az);
+        if (!prop(ax,ay,az))
+            return false;
 
         }
+        return true;
     }
     void bounds(){
         //prop(0,-1,0);
@@ -189,12 +231,19 @@ class markov{
 
         
     }
-    void prop(int xx,int yy, int zz){
+    bool prop(int xx,int yy, int zz){
         Stack<int[]> stk = new Stack<int[]>();
         int[] curr;
         int x,y,z,dx,dy,dz,start,stop;
         bool flag;
         stk.Push(new int[] {xx,yy,zz});
+
+        bool[,,] instack = new bool[sx,sy,sz];
+        for(int i=0;i<sx;i++)
+        for(int j=0;j<sy;j++)
+        for(int k=0;k<sz;k++)
+            instack[i,j,k]=false;
+
         while(stk.Count>0){
             curr=stk.Pop();
             x=curr[0];y=curr[1];z=curr[2];
@@ -204,6 +253,10 @@ class markov{
                 stop=start+1;
             }
             else{
+                if(lens[x,y,z]<=1)
+                    dones[x,y,z]=true;
+
+                instack[x,y,z]=false;
                 start=0;
                 stop=tt;
             }
@@ -227,16 +280,22 @@ class markov{
                                     ndone++;
                                     status();
                                 }
+                                if(lens[dx,dy,dz]==0)
+                                    return false;
                             }
 
                         }
                         
                     }
-                if(delta)
-                    stk.Push(new int[] {dx,dy,dz});    
+                    //instack[dx,dy,dz]=true;
+                    if(delta && !instack[dx,dy,dz] && !dones[dx,dy,dz]){
+                        stk.Push(new int[] {dx,dy,dz});   
+                        instack[dx,dy,dz]=true; 
+                    }
                 }
             }
         }
+        return true;
 
     }
 
@@ -369,6 +428,7 @@ class markov{
     }
     void clear(){
         wave = new bool[sx,sy,sz,tt];
+        dones = new bool[sx,sy,sz];
         lens = new int[sx,sy,sz];
         collapse = new int[sx,sy,sz];
         wsums= new double[sx,sy,sz];
@@ -411,6 +471,7 @@ class markov{
             wlogssums[x,y,z]=logs;
             entropy[x,y,z]=logs;
             lens[x,y,z]=tt;
+            dones[x,y,z]=false;
             for(int t=0;t<tt;t++)
                 wave[x,y,z,t]=true;
 
